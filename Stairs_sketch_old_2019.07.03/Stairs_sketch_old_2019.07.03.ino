@@ -19,14 +19,14 @@
 
 #define SensorPIR false                                                             // выберите тип сенсора: FALSE = сонары SRF05,  TRUE = PIR сенсоры
 #define UseResetSonar true                                                          // выберите, использовать ли механизм reset (имеет смысл только при использовании СОНАРОВ)
-#define N 11                                                                        	// 2...16 - установите количество подсвечиваемых ступеней
-#define Speed 2.0                                                                   // >= 1.2 - задайте скорость включения/выключения освещения ступеней
-#define PWM_InitialValue 500                                                       	// 0...4095 - задайте уровень яркости первой и последней ступеней в режиме ожидания
+#define N 11                                                                          // 2...16 - установите количество подсвечиваемых ступеней
+#define Speed 4.0                                                                   // >= 1.2 - задайте скорость включения/выключения освещения ступеней
+#define PWM_InitialValue 500                                                        // 0...4095 - задайте уровень яркости первой и последней ступеней в режиме ожидания
 #define LightOFF_Delay 7000                                                         // мс, задайте продолжительность освещения лестницы после включения последней ступени
 
 // ============================================================================================================
 
-int StairsPWMValue[16];                                                            	// массив значений уровней яркости (0...4096) ступеней. Все операции только с ним, далее через PWM_Output передаются в LED-драйвер 
+int StairsPWMValue[16];                                                             // массив значений уровней яркости (0...4096) ступеней. Все операции только с ним, далее через PWM_Output передаются в LED-драйвер 
 
 byte Sensor1_IgnoreCount = 0;                                                       // счетчик игнорирования срабатывания сенсора 1 (счетчик спускающихся по лестнице)
 byte Sensor2_IgnoreCount = 0;                                                       // счетчик игнорирования срабатывания сенсора 2 (счетчик поднимающихся по лестнице)
@@ -34,11 +34,11 @@ byte Sensor2_IgnoreCount = 0;                                                   
 byte Sensor1_Ct = 0;
 byte Sensor2_Ct = 0;
 
-boolean Sensor1 = false;                                                         	  // сенсор 1 зафиксировал движение 
+boolean Sensor1 = false;                                                            // сенсор 1 зафиксировал движение 
 boolean Memory1 = false;                                                            // память сенсора 1
 boolean Sensor1_ON = false;                                                         // управляющий сигнал сенсора 1
 
-boolean Sensor2 = false;                                                         	  // сенсор 2 зафиксировал движение
+boolean Sensor2 = false;                                                            // сенсор 2 зафиксировал движение
 boolean Memory2 = false;                                                            // память сенсора 2
 boolean Sensor2_ON = false;                                                         // управляющий сигнал сенсора 2
 
@@ -117,11 +117,11 @@ void loop() {
 
 // - проверить состояние "НИЖНЕГО" сенсора 
 // -- SRF05 --
-  if (!SensorPIR) {                													                        // сканирование пространства перед сонаром 1
+  if (!SensorPIR) {                                                                 // сканирование пространства перед сонаром 1
     digitalWrite(Sonar1trig, HIGH);
     delayMicroseconds(10);
     digitalWrite(Sonar1trig, LOW);
-    byte distance = pulseIn(Sonar1echo, HIGH, 5000) / 58 ;                  				// расчет дистанции до препятствия (5000 - таймаут, то есть не ждать сигнала более 5мс) 
+    byte distance = pulseIn(Sonar1echo, HIGH, 5000) / 58 ;                          // расчет дистанции до препятствия (5000 - таймаут, то есть не ждать сигнала более 5мс) 
                         
     if ((distance > 0) && (distance <= Sonar1limit)) {
       Sensor1_Ct = Sensor1_Ct + 1;  // SRF05 : сонар 1 зафиксировал присутствие -> увеличить счетчик    
@@ -131,35 +131,40 @@ void loop() {
     }
     else Sensor1_Ct = 0;                                                            // иначе, сбросить счетчик в "0"
                                                         
-	  //if (UseResetSonar && (distance !> 0)) digitalWrite(Sonar1reset, LOW);			      // перезапуск зависшего сонара - отключить питание до конца цикла
+    //if (UseResetSonar && (distance <= 0)) digitalWrite(Sonar1reset, LOW);           // перезапуск зависшего сонара - отключить питание до конца цикла
   }
   
 // -- PIR --  
-  else {										                  
+  else {                                      
     if (digitalRead(PIR1out) == LOW) Sensor1_Ct = Sensor1_Ct + 1;                   // PIR : сонар 1 зафиксировал присутствие -> увеличить счетчик
     else Sensor1_Ct = 0;                                                            // иначе, сбросить счетчик в "0"  
   }
 // исключение ложных срабатываний
-  if (Sensor1_Ct >= 3) {
+  if (Sensor1_Ct >= 2) {
     Sensor1 = true; 
-    Sensor1_Ct = 3;                                                                 // ограничить счетчик значением 3
-    Serial.print(" !!!"); 
+    Sensor1_Ct = 2;                                                                 
+    Serial.println(" !!!"); 
   }
-    Serial.println(""); 
+  else {
+    Sensor1 = false; 
+    Sensor1_Ct = 0;   
+    Serial.println("---");  
+  }
     
-  Sensor1_ON = Sensor1 && !(Sensor1_IgnoreCount > 0);                           	  // счетчик игнорирования сенсора 1 не более 0 - сформировать управляющий сигнал 
-  if (Sensor1 && !Memory1) {														                            // фронт срабатывания сенсора 1
+    
+  Sensor1_ON = Sensor1 && (Sensor1_IgnoreCount <= 0);                               // счетчик игнорирования сенсора 1 не более 0 - сформировать управляющий сигнал 
+  if (Sensor1 && !Memory1) {                                                        // фронт срабатывания сенсора 1
     if (Sensor1_IgnoreCount > 0) Sensor1_IgnoreCount-- ;                            // если требуется игнорировть сонар 1, декремент счетчика игнорирования сенсора 1 (вероятно, кто-то закончил спуск по лестнице)
     else Sensor2_IgnoreCount++ ;                                                    // иначе, инкремент счетчика игнорирования сенсора 2 (вероятно, кто-то начал подниматься по лестнице)    
   }
-  Memory1 = Sensor1 ;																                                // запомнить состояние сенсора
+  Memory1 = Sensor1 ;                                                               // запомнить состояние сенсора
 
 
 
  
 // - проверить состояние "ВЕРХНЕГО" сенсора 
 
-  if (!SensorPIR) {                													                        // сканирование пространства перед сонаром 2
+  if (!SensorPIR) {                                                                 // сканирование пространства перед сонаром 2
     digitalWrite(Sonar2trig, HIGH);
     delayMicroseconds(10);
     digitalWrite(Sonar2trig, LOW);
@@ -172,9 +177,9 @@ void loop() {
       Serial.println(" см"); 
     }
     else Sensor2_Ct = 0; 
-	  	  
-	  //if (UseResetSonar && (distance !> 0)) digitalWrite(Sonar2reset, LOW);			        // перезапуск зависшего сонара - отключить питание до конца цикла
-	}
+        
+    //if (UseResetSonar && (distance <= 0)) digitalWrite(Sonar2reset, LOW);             // перезапуск зависшего сонара - отключить питание до конца цикла
+  }
  
 // -- PIR -- 
   else {                                      
@@ -182,14 +187,18 @@ void loop() {
     else Sensor2_Ct = 0;                                                            // иначе, сбросить счетчик в "0"  
   }
 // исключение ложных срабатываний
-  if (Sensor2_Ct >= 3) {
+  if (Sensor2_Ct >= 2) {
     Sensor2 = true; 
-    Sensor2_Ct = 3;                                                                 // ограничить счетчик значением 3
-    Serial.print(" !!!"); 
+    Sensor2_Ct = 2;                                                                 
+    Serial.println(" !!!"); 
   }
-    Serial.println(""); 
+  else {
+    Sensor2 = false; 
+    Sensor2_Ct = 0;   
+    Serial.println("---");  
+  }
 
-  Sensor2_ON = Sensor2 && !(Sensor2_IgnoreCount > 0);                               // счетчик игнорирования сенсора 2 не более 0 - сформировать управляющий сигнал 
+  Sensor2_ON = Sensor2 && (Sensor2_IgnoreCount <= 0);                               // счетчик игнорирования сенсора 2 не более 0 - сформировать управляющий сигнал 
   if (Sensor2 && !Memory2) {                                                        // фронт срабатывания сенсора 2
     if (Sensor2_IgnoreCount > 0) Sensor2_IgnoreCount-- ;                            // если требуется игнорировть сонар 2, декремент счетчика игнорирования сенсора 2 (вероятно, кто-то закончил спуск по лестнице)
     else Sensor1_IgnoreCount++ ;                                                    // иначе, инкремент счетчика игнорирования сенсора 1 (вероятно, кто-то начал подниматься по лестнице)    
@@ -200,16 +209,16 @@ void loop() {
   
 // - освещение лестницы включено
 
-  if (AllLightOn) {                                                                	// если лестница находится во включенном состоянии, можно сбросить флаги-"потеряшки" на всякий случай
-    ON_BottomTop = false;                                                        	  // включение освещения снизу вверх
-    ON_TopBottom = false;                                                        	  // включение освещения сверху вниз
+  if (AllLightOn) {                                                                 // если лестница находится во включенном состоянии, можно сбросить флаги-"потеряшки" на всякий случай
+    ON_BottomTop = false;                                                           // включение освещения снизу вверх
+    ON_TopBottom = false;                                                           // включение освещения сверху вниз
   }
   
    
 // - действия при срабатывания "НИЖНЕГО" сенсора 
   
   if (Sensor1_ON && InitialState) ON_BottomTop = true;                              // при срабатывании сенсора из исходного состояния лестницы начать включение освещения ступеней снизу вверх
-  else if (Sensor1_ON && AllLightOn) AllLight_OffDelay = LightOFF_Delay ;           // если освещение уже полностью включено, обновить отсчет задержки выключения освещения   	
+  else if (Sensor1_ON && AllLightOn) AllLight_OffDelay = LightOFF_Delay ;           // если освещение уже полностью включено, обновить отсчет задержки выключения освещения     
   else if (Sensor1_ON && OFF_BottomTop) {                                           // если происходит выключение освещения ступеней снизу вверх,
     OFF_BottomTop = false;                                                          // прекратить выключение освещения
     ON_BottomTop = true;                                                            // вновь начать включение освещения ступеней снизу вверх
@@ -228,25 +237,25 @@ void loop() {
 // - действия при срабатывания "ВЕРХНЕГО" сенсора 
 
   if (Sensor2_ON && InitialState) ON_TopBottom = true;                              // при срабатывании сенсора из исходного состояния лестницы начать включение освещения ступеней сверху вниз
-  else if (Sensor2_ON && AllLightOn) AllLight_OffDelay = LightOFF_Delay ;           // если освещение уже полностью включено, обновить отсчет задержки выключения освещения   	
-  else if (Sensor2_ON && OFF_TopBottom) {                                       	  // если происходит выключение освещения ступеней сверху вниз
+  else if (Sensor2_ON && AllLightOn) AllLight_OffDelay = LightOFF_Delay ;           // если освещение уже полностью включено, обновить отсчет задержки выключения освещения     
+  else if (Sensor2_ON && OFF_TopBottom) {                                           // если происходит выключение освещения ступеней сверху вниз
     OFF_TopBottom = false;                                                          // прекратить выключение освещения
     ON_TopBottom = true;                                                            // вновь начать включение освещения ступеней сверху вниз
   }
 /*  
-  else if (Sensor2_ON && ON_BottomTop) {                                        	  // если происходит включение освещения ступеней снизу вверх
+  else if (Sensor2_ON && ON_BottomTop) {                                            // если происходит включение освещения ступеней снизу вверх
     ON_BottomTop = false;                                                           // прекратить включение освещения снизу вверх
     ON_TopBottom = true;                                                            // начать включение освещения ступеней сверху вниз
   }
 */  
-  else if (Sensor2_ON && OFF_BottomTop) {                                       	  // если происходит выключение освещения ступеней снизу вверх
+  else if (Sensor2_ON && OFF_BottomTop) {                                           // если происходит выключение освещения ступеней снизу вверх
     OFF_BottomTop = false;                                                          // прекратить выключение освещения снизу вверх
     ON_TopBottom = true;                                                            // начать включение освещения ступеней сверху вниз
   }
 
 // - определение необходимости и направления выключения освещения
 
-	if (AllLightOn && !(AllLight_OffDelay > 0)) {                                  	  // пора гасить освещение
+  if (AllLightOn && AllLight_OffDelay <= 0) {                                     // пора гасить освещение
     OFF_BottomTop = !direct;                                                        // снизу вверх
     OFF_TopBottom = direct;                                                         // сверху вниз
   }
@@ -282,19 +291,19 @@ void loop() {
 void BottomTopLightON() { 
   direct = false;                                                                   // запомнить направление = снизу вверх
   for (byte i = 0; i < N; i++) {                                                    // перебор ступеней снизу вверх
-    if (StairsPWMValue[i] < 1) {													                          // если очередная ступень выключена,
-	  StairsPWMValue[i] = 5; 	  									                                    // задать для неё начальный уровень яркости
-	  return;																		                                      // и выйти из процедуры
-	  }  
-	  else if (StairsPWMValue[i] < 4095 ){                                     		    // иначе, если уровень яркости ступени меньше максимального,
-      StairsPWMValue[i] = StairsPWMValue[i] * Speed ; 	  								          // увеличить уровень яркости  
-	  if (StairsPWMValue[i] > 4095 ) StairsPWMValue[i] = 4095 ;               		    // ограничить максимальную яркость
+    if (StairsPWMValue[i] < 1) {                                                    // если очередная ступень выключена,
+    StairsPWMValue[i] = 5;                                                          // задать для неё начальный уровень яркости
+    return;                                                                         // и выйти из процедуры
+    }  
+    else if (StairsPWMValue[i] < 4095 ){                                            // иначе, если уровень яркости ступени меньше максимального,
+      StairsPWMValue[i] = StairsPWMValue[i] * Speed ;                               // увеличить уровень яркости  
+    if (StairsPWMValue[i] > 4095 ) StairsPWMValue[i] = 4095 ;                       // ограничить максимальную яркость
       return;                                                                       // и выйти из процедуры                            
     }
   }  
-	AllLightOn = true;                                                            	   // освещение лестницы полностью включено
+  AllLightOn = true;                                                                 // освещение лестницы полностью включено
   AllLight_OffDelay = LightOFF_Delay;
-  ON_BottomTop = false;                                                         	   // закончить включение ступеней снизу вверх
+  ON_BottomTop = false;                                                              // закончить включение ступеней снизу вверх
 }
 
 // ===== ПРОЦЕДУРА ВЫКЛЮЧЕНИЯ СНИЗУ ВВЕРХ - ПОСЛЕДОВАТЕЛЬНОЕ СНИЖЕНИЕ УРОВНЕЙ ЯРКОСТИ СТУПЕНЕЙ ===============
@@ -304,12 +313,12 @@ void BottomTopLightOFF() {
   for (byte i = 0; i < N ; i++) {                                                   // перебор ступеней снизу вверх
     if (((i == 0) || (i == N-1)) && (StairsPWMValue[i] > PWM_InitialValue)) {       // если это первая или последняя ступень и уровень яркости выше дежурного уровня,
       StairsPWMValue[i] = StairsPWMValue[i] / Speed ;                          // уменьшить яркость
-	  if (StairsPWMValue[i] < PWM_InitialValue ) StairsPWMValue[i] = PWM_InitialValue ; // ограничить минимальную яркость
-      return;                                                                       // и выйти из процедуры	  
+    if (StairsPWMValue[i] < PWM_InitialValue ) StairsPWMValue[i] = PWM_InitialValue ; // ограничить минимальную яркость
+      return;                                                                       // и выйти из процедуры   
     }  
     else if ((i != 0) && (i != N-1) && (StairsPWMValue[i] > 0)) {                   // для остальных ступеней, если уровень яркости выше "0",
       StairsPWMValue[i] = StairsPWMValue[i] / Speed ;                               // уменьшить яркость
-	  if (StairsPWMValue[i] < 5 ) StairsPWMValue[i] = 0 ; 							              // ограничить минимальную яркость
+    if (StairsPWMValue[i] < 5 ) StairsPWMValue[i] = 0 ;                             // ограничить минимальную яркость
       return;                                                                       // и выйти из процедуры
     }
   }
@@ -321,19 +330,19 @@ void BottomTopLightOFF() {
 void TopBottomLightON() { 
   direct = true;                                                                    // запомнить направление = сверху вниз
   for (byte i = N; i > 0; i--) {                                                    // перебор ступеней сверху вниз
-    if (StairsPWMValue[i-1] < 1) {                                                 	// если очередная ступень выключена,
- 	  StairsPWMValue[i-1] = 5; 	  									                                  // задать для неё начальный уровень яркости
-	  return;																		                                      // и выйти из процедуры
-	  }  
-	  else if (StairsPWMValue[i-1] < 4095 ){                                     		  // иначе, если уровень яркости ступени меньше максимального,
-      StairsPWMValue[i-1] = StairsPWMValue[i-1] * Speed ; 	  								      // увеличить уровень яркости  
-	    if (StairsPWMValue[i-1] > 4095 ) StairsPWMValue[i-1] = 4095 ;               	// ограничить максимальную яркость
+    if (StairsPWMValue[i-1] < 1) {                                                  // если очередная ступень выключена,
+    StairsPWMValue[i-1] = 5;                                                        // задать для неё начальный уровень яркости
+    return;                                                                         // и выйти из процедуры
+    }  
+    else if (StairsPWMValue[i-1] < 4095 ){                                          // иначе, если уровень яркости ступени меньше максимального,
+      StairsPWMValue[i-1] = StairsPWMValue[i-1] * Speed ;                           // увеличить уровень яркости  
+      if (StairsPWMValue[i-1] > 4095 ) StairsPWMValue[i-1] = 4095 ;                 // ограничить максимальную яркость
       return;                                                                       // и выйти из процедуры                            
     } 
   } 
-  AllLightOn = true;                                                            	  // освещение лестницы полностью включено
+  AllLightOn = true;                                                                // освещение лестницы полностью включено
   AllLight_OffDelay = LightOFF_Delay;
-  ON_TopBottom = false;                                                         	  // закончить включение ступеней сверху вниз
+  ON_TopBottom = false;                                                             // закончить включение ступеней сверху вниз
 }
 
 // ===== ПРОЦЕДУРА ВЫКЛЮЧЕНИЯ СВЕРХУ ВНИЗ - ПОСЛЕДОВАТЕЛЬНОЕ СНИЖЕНИЕ УРОВНЕЙ ЯРКОСТИ СТУПЕНЕЙ ================
@@ -343,12 +352,12 @@ void TopBottomLightOFF() {
   for (byte i = N ; i >0; i--) {                                                    // перебор ступеней вниз, начиная с верхней
     if (((i == 1) || (i == N)) && (StairsPWMValue[i-1] > PWM_InitialValue)) {       // если это первая или последняя ступень и уровень яркости выше дежурного уровня,
       StairsPWMValue[i-1] = StairsPWMValue[i-1] / Speed ;                           // уменьшить яркость
-	  if (StairsPWMValue[i-1] < PWM_InitialValue ) StairsPWMValue[i-1] = PWM_InitialValue ; // ограничить минимальную яркость
-      return;                                                                       // и выйти из процедуры	  
+    if (StairsPWMValue[i-1] < PWM_InitialValue ) StairsPWMValue[i-1] = PWM_InitialValue ; // ограничить минимальную яркость
+      return;                                                                       // и выйти из процедуры   
     }  
     else if ((i != 1) && (i != N) && (StairsPWMValue[i-1] > 0)) {                   // для остальных ступеней, если уровень яркости выше "0",
       StairsPWMValue[i-1] = StairsPWMValue[i-1] / Speed ;                           // уменьшить яркость
-	  if (StairsPWMValue[i-1] < 5 ) StairsPWMValue[i-1] = 0 ; 							          // ограничить минимальную яркость
+    if (StairsPWMValue[i-1] < 5 ) StairsPWMValue[i-1] = 0 ;                         // ограничить минимальную яркость
       return;                                                                       // и выйти из процедуры
     }
   }
@@ -359,15 +368,6 @@ void TopBottomLightOFF() {
 // ===== ПРОЦЕДУРА ПЕРЕДАЧИ УПРАВЛЯЮЩИХ СИГНАЛОВ В LED-ДРАЙВЕР TLC 5940 =======================================
 
 void PWM_Output() {  
-  for (int i = 0; i < 16; i++) Tlc.set(i, StairsPWMValue[i]);                      	// яркость ступеней в диапазоне 0...4096 
+  for (int i = 0; i < 16; i++) Tlc.set(i, StairsPWMValue[i]);                       // яркость ступеней в диапазоне 0...4096 
   Tlc.update();
 }
-
-
-
-
-
-
-
- 
- 
